@@ -7,6 +7,7 @@ import pandas as pd
 from shapely.geometry import Polygon
 
 from ignisca.data.dataset import IgnisDataset
+from ignisca.data.holdout import HeldOutFire
 
 
 def _write_fake_inputs(
@@ -96,3 +97,35 @@ def test_preprocess_end_to_end(tmp_path, synthetic_geotiff, synthetic_netcdf):
     x, y = ds[0]
     assert x.shape == (12, 32, 32)
     assert y.shape == (32, 32)
+
+
+def test_preprocess_honors_held_out_fires(tmp_path, synthetic_geotiff, synthetic_netcdf):
+    """A held-out fire overlapping the tile must cause all timesteps to be skipped."""
+    paths = _write_fake_inputs(tmp_path, synthetic_geotiff, synthetic_netcdf)
+    from scripts.preprocess import preprocess_fire
+
+    held_out = [
+        HeldOutFire(
+            name="woolsey_holdout",
+            ignition_utc=datetime(2018, 11, 9, 12),
+            perimeter=Polygon(
+                [(-118.58, 34.02), (-118.52, 34.02), (-118.52, 34.08), (-118.58, 34.08)]
+            ),
+        )
+    ]
+    cache_root = tmp_path / "cache_holdout"
+    n = preprocess_fire(
+        fire_name="woolsey_2018_smoke",
+        center_lon=-118.55,
+        center_lat=34.06,
+        size_px=32,
+        resolution="fine",
+        timesteps=[datetime(2018, 11, 9, 13), datetime(2018, 11, 9, 15)],
+        delta_hours=2,
+        paths=paths,
+        cache_root=cache_root,
+        split="train",
+        held_out=held_out,
+    )
+    assert n == 0
+    assert not (cache_root / "train").exists() or not any((cache_root / "train").glob("*.npz"))

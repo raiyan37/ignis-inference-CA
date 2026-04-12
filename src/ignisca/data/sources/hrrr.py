@@ -21,21 +21,21 @@ class HrrrSample:
 
 
 def load_hrrr_at(path: Path, ts: datetime, target: TargetGrid) -> HrrrSample:
-    ds = xr.open_dataset(path)
-    snap = ds.sel(time=ts, method="nearest")
+    with xr.open_dataset(path) as ds:
+        snap = ds.sel(time=ts, method="nearest")
 
-    src_bounds = _bounds_from_coords(ds)
-    src_crs = "EPSG:4326"
+        src_bounds = _bounds_from_coords(ds)
+        src_crs = "EPSG:4326"
 
-    def reproj(var: str) -> np.ndarray:
-        arr = snap[var].values.astype(np.float32)
-        return reproject_array(arr, src_crs, src_bounds, target, resampling=Resampling.bilinear)
+        def reproj(var: str) -> np.ndarray:
+            arr = snap[var].values.astype(np.float32)
+            return reproject_array(arr, src_crs, src_bounds, target, resampling=Resampling.bilinear)
 
-    wind_u = reproj("UGRD_10m")
-    wind_v = reproj("VGRD_10m")
-    rh = reproj("RH_2m")
-    tmp = reproj("TMP_2m")
-    dsr = _days_since_rain(ds, ts, target)
+        wind_u = reproj("UGRD_10m")
+        wind_v = reproj("VGRD_10m")
+        rh = reproj("RH_2m")
+        tmp = reproj("TMP_2m")
+        dsr = _days_since_rain(ds, ts, target)
 
     return HrrrSample(
         wind_u=wind_u,

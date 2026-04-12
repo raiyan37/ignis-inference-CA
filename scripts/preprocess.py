@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List
 
+import geopandas as gpd
 from shapely.geometry import box
 
 from ignisca.data.cache import CacheShard, save_shard
@@ -96,6 +97,25 @@ def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
+def _load_held_out_fires(path: Path) -> List[HeldOutFire]:
+    """Read a GeoJSON FeatureCollection of held-out fires.
+
+    Required feature properties: ``name``, ``ignition_utc`` (ISO 8601).
+    Geometry must be a polygon/multipolygon in EPSG:4326 of the final burn footprint.
+    """
+    gdf = gpd.read_file(path).to_crs("EPSG:4326")
+    out: List[HeldOutFire] = []
+    for _, row in gdf.iterrows():
+        out.append(
+            HeldOutFire(
+                name=row["name"],
+                ignition_utc=datetime.fromisoformat(row["ignition_utc"]),
+                perimeter=row.geometry,
+            )
+        )
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="IgnisCA preprocessing orchestrator")
     parser.add_argument("--fire-name", required=True)
@@ -114,7 +134,17 @@ def main() -> None:
     parser.add_argument("--nifc", type=Path, required=True)
     parser.add_argument("--cache-root", type=Path, required=True)
     parser.add_argument("--split", choices=["train", "val", "test"], required=True)
+    parser.add_argument(
+        "--held-out-fires",
+        type=Path,
+        default=None,
+        help="GeoJSON of held-out fires (properties: name, ignition_utc; EPSG:4326)",
+    )
     args = parser.parse_args()
+
+    held_out: List[HeldOutFire] = []
+    if args.held_out_fires is not None:
+        held_out = _load_held_out_fires(args.held_out_fires)
 
     timesteps: List[datetime] = []
     cursor = args.start
@@ -139,7 +169,7 @@ def main() -> None:
         },
         cache_root=args.cache_root,
         split=args.split,
-        held_out=[],
+        held_out=held_out,
     )
     print(f"Wrote {n} shards to {args.cache_root / args.split}")
 
