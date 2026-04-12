@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ignisca"
+version = "0.0.1"
+description = "Cross-scale, physics-informed wildfire spread forecaster for SoCal."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "numpy>=1.24,<2.0",
+    "scipy>=1.10",
+    "torch>=2.1,<3.0",
+    "rasterio>=1.3",
+    "xarray>=2023.1",
+    "netcdf4>=1.6",
+    "geopandas>=0.14",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "requests>=2.31",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --strict-markers"
