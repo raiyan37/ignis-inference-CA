@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from ignisca.data.sources.ndws import NdwsRecord, adapt_ndws_record
 
@@ -31,3 +32,21 @@ def test_adapt_ndws_record_maps_channels():
     assert np.allclose(rec.wind_u, 6.0, atol=0.01)
     assert np.allclose(rec.wind_v, 0.0, atol=0.01)
     assert np.allclose(rec.temperature_k, 305.0)
+
+
+def test_adapt_ndws_record_missing_erc_raises_cleanly():
+    """erc is read unconditionally; it must be part of the required-field guard."""
+    raw = {
+        "elevation": np.zeros((4, 4), dtype=np.float32),
+        "sph": np.full((4, 4), 0.005, dtype=np.float32),
+        "pdsi": np.zeros((4, 4), dtype=np.float32),
+        "NDVI": np.zeros((4, 4), dtype=np.float32),
+        "pr": np.zeros((4, 4), dtype=np.float32),
+        "tmmx": np.full((4, 4), 300.0, dtype=np.float32),
+        "vs": np.zeros((4, 4), dtype=np.float32),
+        "th": np.zeros((4, 4), dtype=np.float32),
+        "PrevFireMask": np.zeros((4, 4), dtype=np.uint8),
+        "FireMask": np.zeros((4, 4), dtype=np.uint8),
+    }
+    with pytest.raises(KeyError, match="NDWS record missing field: erc"):
+        adapt_ndws_record(raw)

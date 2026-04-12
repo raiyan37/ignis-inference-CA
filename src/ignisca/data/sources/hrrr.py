@@ -62,17 +62,24 @@ def _days_since_rain(
     window = ds.sel(time=slice(None, ts))
     precip = window["APCP"].values  # (T, H, W)
     if precip.size == 0:
-        zeros = np.zeros((1, 1, 1), dtype=np.float32)
+        H = ds.sizes["lat"] if "lat" in ds.sizes else ds["lat"].shape[0]
+        W = ds.sizes["lon"] if "lon" in ds.sizes else ds["lon"].shape[0]
+        dsr_days = np.full((H, W), 30.0, dtype=np.float32)
     else:
-        zeros = (precip > threshold_mm).astype(np.float32)
-
-    T, H, W = zeros.shape
-    cumulative = np.full((H, W), T, dtype=np.float32)
-    for t in range(T):
-        wet = zeros[t] > 0
-        cumulative[wet] = T - 1 - t
-    dsr_hours = cumulative.astype(np.float32)
-    dsr_days = dsr_hours / 24.0
+        wet = (precip > threshold_mm).astype(np.float32)
+        T, H, W = wet.shape
+        # Slots-since-last-wet. Default T means "no wet slot found in window".
+        cumulative = np.full((H, W), T, dtype=np.float32)
+        for t in range(T):
+            mask = wet[t] > 0
+            cumulative[mask] = T - 1 - t
+        # Convert slot count to hours using the actual native timestep interval.
+        times = window["time"].values
+        if len(times) >= 2:
+            dt_hours = float((times[1] - times[0]) / np.timedelta64(1, "h"))
+        else:
+            dt_hours = 1.0
+        dsr_days = (cumulative * dt_hours / 24.0).astype(np.float32)
 
     src_bounds = _bounds_from_coords(ds)
     return reproject_array(

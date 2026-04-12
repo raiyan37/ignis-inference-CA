@@ -25,7 +25,10 @@ class NdwsRecord:
 
 
 def adapt_ndws_record(raw: Dict[str, np.ndarray]) -> NdwsRecord:
-    required = ["elevation", "sph", "pdsi", "NDVI", "pr", "tmmx", "vs", "th", "PrevFireMask", "FireMask"]
+    required = [
+        "elevation", "sph", "pdsi", "NDVI", "pr", "tmmx", "erc",
+        "vs", "th", "PrevFireMask", "FireMask",
+    ]
     for key in required:
         if key not in raw:
             raise KeyError(f"NDWS record missing field: {key}")
