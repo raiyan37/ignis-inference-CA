@@ -17,13 +17,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=4)
-    parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--lambda-data", type=float, default=1.0)
     parser.add_argument("--lambda-phys", type=float, default=0.0)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--base-channels", type=int, default=64)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--grad-clip-norm", type=float, default=1.0)
     args = parser.parse_args()
 
     cfg = TrainConfig(
@@ -42,6 +43,7 @@ def main() -> None:
         base_channels=args.base_channels,
         num_workers=args.num_workers,
         device=args.device,
+        grad_clip_norm=args.grad_clip_norm,
     )
     result = train_one_run(cfg)
     print(

@@ -60,6 +60,9 @@ def train_one_run(cfg: TrainConfig) -> Dict[str, float]:
     model = ResUNet(in_channels=12, base=cfg.base_channels, dropout=cfg.dropout).to(device)
     loss_fn = IgnisLoss(lambda_data=cfg.lambda_data, lambda_phys=cfg.lambda_phys).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max(cfg.epochs, 1), eta_min=cfg.lr * 0.01
+    )
 
     run_dir = Path(cfg.out_dir) / cfg.run_name
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -81,6 +84,8 @@ def train_one_run(cfg: TrainConfig) -> Dict[str, float]:
             loss = loss_fn(logits, y, features=x)
             optimizer.zero_grad()
             loss.backward()
+            if cfg.grad_clip_norm > 0.0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=cfg.grad_clip_norm)
             optimizer.step()
             train_loss_sum += float(loss.item())
             n_train_batches += 1
@@ -126,5 +131,7 @@ def train_one_run(cfg: TrainConfig) -> Dict[str, float]:
                 },
                 ckpt_path,
             )
+
+        scheduler.step()
 
     return {"best_val_iou": float(best_iou), "best_epoch": float(best_epoch)}

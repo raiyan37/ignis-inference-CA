@@ -14,10 +14,11 @@ class TrainConfig:
     seed: int = 0
     epochs: int = 30
     batch_size: int = 4
-    lr: float = 1e-5
+    lr: float = 3e-4
     lambda_data: float = 1.0
     lambda_phys: float = 0.0
     dropout: float = 0.2
     base_channels: int = 64
     num_workers: int = 0
     device: str = "cuda"
+    grad_clip_norm: float = 1.0

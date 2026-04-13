@@ -4,6 +4,23 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ignisca.data.features import CHANNEL_NAMES
+
+_EXPECTED_PHYSICS_CHANNELS = {
+    0: "fire_mask",
+    1: "fuel_model",
+    4: "slope",
+    7: "wind_u",
+    8: "wind_v",
+}
+for _idx, _name in _EXPECTED_PHYSICS_CHANNELS.items():
+    if CHANNEL_NAMES[_idx] != _name:
+        raise AssertionError(
+            f"IgnisLoss physics branch expects channel {_idx}={_name!r}, "
+            f"but CHANNEL_NAMES[{_idx}]={CHANNEL_NAMES[_idx]!r}. "
+            "Reorder ignisca.data.features.CHANNEL_NAMES or update the indices in losses.py."
+        )
+
 _SOBEL_X = torch.tensor(
     [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]
 ) / 8.0
