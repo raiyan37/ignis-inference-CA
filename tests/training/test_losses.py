@@ -1,6 +1,8 @@
 import torch
 
 from ignisca.training.losses import (
+    IgnisLoss,
+    level_set_residual,
     rothermel_spread_rate,
     sobel_gradient_magnitude,
 )
@@ -50,3 +52,53 @@ def test_rothermel_zero_fuel_gives_zero_spread():
     v = torch.full((1, 1, 4, 4), 2.0)
     f = rothermel_spread_rate(fuel, slope, u, v)
     assert torch.allclose(f, torch.zeros_like(f))
+
+
+def test_level_set_residual_is_nonnegative():
+    pred = torch.rand(2, 1, 16, 16)
+    mask = torch.randint(0, 2, (2, 1, 16, 16)).float()
+    spread = torch.rand(2, 1, 16, 16)
+    r = level_set_residual(pred, mask, spread)
+    assert r.item() >= 0.0
+
+
+def test_level_set_residual_zero_when_pred_matches_mask_and_F_zero():
+    mask = torch.zeros(1, 1, 8, 8)
+    mask[0, 0, 2:6, 2:6] = 1.0
+    pred = mask.clone()
+    spread = torch.zeros_like(mask)
+    r = level_set_residual(pred, mask, spread)
+    assert torch.allclose(r, torch.zeros(()), atol=1e-6)
+
+
+def test_ignis_loss_data_only_matches_bce():
+    logits = torch.randn(2, 1, 16, 16, requires_grad=True)
+    target = torch.randint(0, 2, (2, 1, 16, 16)).float()
+    bce = torch.nn.functional.binary_cross_entropy_with_logits(logits, target)
+    loss_fn = IgnisLoss(lambda_data=1.0, lambda_phys=0.0)
+    ignis = loss_fn(logits, target, features=None)
+    assert torch.allclose(bce, ignis)
+
+
+def test_ignis_loss_physics_requires_features():
+    logits = torch.randn(1, 1, 16, 16)
+    target = torch.randint(0, 2, (1, 1, 16, 16)).float()
+    loss_fn = IgnisLoss(lambda_data=1.0, lambda_phys=0.1)
+    try:
+        loss_fn(logits, target, features=None)
+    except ValueError as exc:
+        assert "features" in str(exc)
+        return
+    raise AssertionError("expected ValueError when features is None and lambda_phys > 0")
+
+
+def test_ignis_loss_physics_branch_is_differentiable():
+    torch.manual_seed(0)
+    logits = torch.randn(2, 1, 16, 16, requires_grad=True)
+    target = torch.randint(0, 2, (2, 1, 16, 16)).float()
+    features = torch.rand(2, 12, 16, 16)
+    loss_fn = IgnisLoss(lambda_data=1.0, lambda_phys=0.1)
+    loss = loss_fn(logits, target, features=features)
+    loss.backward()
+    assert logits.grad is not None
+    assert logits.grad.abs().sum().item() > 0.0
