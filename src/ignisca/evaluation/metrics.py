@@ -50,3 +50,41 @@ def auc_pr(logits: torch.Tensor, target: torch.Tensor) -> float:
         return 0.0
     probs_np = torch.sigmoid(logits).flatten().cpu().numpy()
     return float(average_precision_score(truth_np, probs_np))
+
+
+def expected_calibration_error(
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    n_bins: int = 10,
+) -> float:
+    """Pixel-level Expected Calibration Error with equal-width bins on [0, 1].
+
+    For each bin, compute confidence (mean predicted probability in the bin),
+    accuracy (fraction of positives in the bin), and weight (bin count / total).
+    ECE is the weighted sum of |acc - conf| over all non-empty bins. Background
+    pixels are included — this matches the standard pixel-level convention.
+    """
+    probs = torch.sigmoid(logits).flatten()
+    truth = (target > 0.5).flatten().float()
+    total = probs.numel()
+    if total == 0:
+        return 0.0
+
+    # Edges: 0.0, 0.1, 0.2, ..., 1.0 (n_bins + 1 points).
+    edges = torch.linspace(0.0, 1.0, n_bins + 1, device=probs.device)
+    ece = 0.0
+    for i in range(n_bins):
+        lo, hi = edges[i], edges[i + 1]
+        # Final bin is closed on the right so prob==1.0 is included.
+        if i == n_bins - 1:
+            in_bin = (probs >= lo) & (probs <= hi)
+        else:
+            in_bin = (probs >= lo) & (probs < hi)
+        n_in = int(in_bin.sum().item())
+        if n_in == 0:
+            continue
+        bin_conf = float(probs[in_bin].mean().item())
+        bin_acc = float(truth[in_bin].mean().item())
+        weight = n_in / total
+        ece += weight * abs(bin_acc - bin_conf)
+    return ece

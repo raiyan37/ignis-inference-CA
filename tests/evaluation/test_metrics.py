@@ -51,3 +51,44 @@ def test_auc_pr_all_negative_target_returns_zero():
     logits = torch.randn(1, 1, 4, 4)
     target = torch.zeros(1, 1, 4, 4)
     assert auc_pr(logits, target) == 0.0
+
+
+def test_ece_perfect_prediction_is_zero():
+    from ignisca.evaluation.metrics import expected_calibration_error
+
+    target = (torch.rand(2, 1, 16, 16) > 0.5).float()
+    # Pick logits that saturate sigmoid to 0 or 1 exactly matching target.
+    logits = torch.where(
+        target > 0.5,
+        torch.full_like(target, 30.0),
+        torch.full_like(target, -30.0),
+    )
+    ece = expected_calibration_error(logits, target, n_bins=10)
+    assert ece < 1e-6
+
+
+def test_ece_constant_half_prediction_on_balanced_target():
+    from ignisca.evaluation.metrics import expected_calibration_error
+
+    # All predictions exactly 0.5, target is 50% positive.
+    logits = torch.zeros(1, 1, 4, 4)   # sigmoid(0) = 0.5
+    target = torch.tensor([
+        [[[1.0, 1.0, 0.0, 0.0],
+          [1.0, 1.0, 0.0, 0.0],
+          [1.0, 1.0, 0.0, 0.0],
+          [1.0, 1.0, 0.0, 0.0]]]
+    ])
+    ece = expected_calibration_error(logits, target, n_bins=10)
+    # Single bin [0.5, 0.6) has conf=0.5, acc=0.5 → weighted |diff|=0.
+    assert ece < 1e-6
+
+
+def test_ece_scripted_miscalibration_matches_hand_compute():
+    from ignisca.evaluation.metrics import expected_calibration_error
+
+    # 4 pixels all with sigmoid≈0.9 (logit≈2.197), target all 0.
+    # Single bin [0.9, 1.0): conf≈0.9, acc=0, weight=1.0 → ECE≈0.9
+    logits = torch.full((1, 1, 2, 2), 2.1972)
+    target = torch.zeros(1, 1, 2, 2)
+    ece = expected_calibration_error(logits, target, n_bins=10)
+    assert abs(ece - 0.9) < 1e-3
