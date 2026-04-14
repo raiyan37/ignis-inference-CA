@@ -88,3 +88,28 @@ def expected_calibration_error(
         weight = n_in / total
         ece += weight * abs(bin_acc - bin_conf)
     return ece
+
+
+def growth_rate_mae(
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    input_mask: torch.Tensor,
+    pixel_area_km2: float,
+    dt_hours: float = 1.0,
+) -> float:
+    """Mean absolute error of the per-sample fire growth rate.
+
+    Growth rate is defined as ``(next_area - current_area) / dt_hours`` in
+    km²/h, where ``next_area`` is computed from the predicted next-step fire
+    mask and ``current_area`` from the input fire mask. Returns a mean over the
+    batch as a Python float.
+    """
+    if dt_hours <= 0:
+        raise ValueError(f"dt_hours must be positive, got {dt_hours}")
+    pred_bin = (torch.sigmoid(logits) > 0.5).float()
+    pred_area_next = pred_bin.sum(dim=(-1, -2, -3)) * pixel_area_km2
+    true_area_next = (target > 0.5).float().sum(dim=(-1, -2, -3)) * pixel_area_km2
+    curr_area = (input_mask > 0.5).float().sum(dim=(-1, -2, -3)) * pixel_area_km2
+    pred_growth = (pred_area_next - curr_area) / dt_hours
+    true_growth = (true_area_next - curr_area) / dt_hours
+    return float((pred_growth - true_growth).abs().mean().item())

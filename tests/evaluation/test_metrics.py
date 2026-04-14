@@ -92,3 +92,56 @@ def test_ece_scripted_miscalibration_matches_hand_compute():
     target = torch.zeros(1, 1, 2, 2)
     ece = expected_calibration_error(logits, target, n_bins=10)
     assert abs(ece - 0.9) < 1e-3
+
+
+def test_growth_rate_mae_zero_when_pred_equals_target():
+    from ignisca.evaluation.metrics import growth_rate_mae
+
+    target = (torch.rand(2, 1, 8, 8) > 0.6).float()
+    input_mask = (torch.rand(2, 1, 8, 8) > 0.8).float()
+    # Build saturated logits from target so sigmoid(logits) > 0.5 == target.
+    logits = torch.where(
+        target > 0.5,
+        torch.full_like(target, 10.0),
+        torch.full_like(target, -10.0),
+    )
+    mae = growth_rate_mae(logits, target, input_mask, pixel_area_km2=1.0, dt_hours=1.0)
+    assert mae == 0.0
+
+
+def test_growth_rate_mae_scripted_case():
+    from ignisca.evaluation.metrics import growth_rate_mae
+
+    # B=1, H=W=4. current area = 2 pixels, true next area = 8 pixels,
+    # predicted next area = 4 pixels. pixel_area = 0.5 km², dt = 2 h.
+    # true growth = (8 - 2) * 0.5 / 2 = 1.5 km²/h
+    # pred growth = (4 - 2) * 0.5 / 2 = 0.5 km²/h
+    # |pred - true| = 1.0
+    input_mask = torch.zeros(1, 1, 4, 4)
+    input_mask[0, 0, 0, 0] = 1.0
+    input_mask[0, 0, 0, 1] = 1.0
+
+    target = torch.zeros(1, 1, 4, 4)
+    target[0, 0, 0, :] = 1.0
+    target[0, 0, 1, :] = 1.0  # 8 positives total
+
+    logits = torch.full((1, 1, 4, 4), -10.0)
+    logits[0, 0, 0, :] = 10.0  # 4 predicted positives
+
+    mae = growth_rate_mae(logits, target, input_mask, pixel_area_km2=0.5, dt_hours=2.0)
+    assert abs(mae - 1.0) < 1e-6
+
+
+def test_growth_rate_mae_batch_mean():
+    from ignisca.evaluation.metrics import growth_rate_mae
+
+    # Two samples with known abs errors of 2.0 and 0.0 → mean 1.0.
+    input_mask = torch.zeros(2, 1, 2, 2)
+    target = torch.zeros(2, 1, 2, 2)
+    target[0, 0, 0, 0] = 1.0  # sample 0 has 1 true positive
+    target[0, 0, 0, 1] = 1.0  # sample 0 has 2 true positives
+    logits = torch.full((2, 1, 2, 2), -10.0)
+    # sample 0: pred 0 positives, true 2 → error 2
+    # sample 1: pred 0 positives, true 0 → error 0
+    mae = growth_rate_mae(logits, target, input_mask, pixel_area_km2=1.0, dt_hours=1.0)
+    assert abs(mae - 1.0) < 1e-6
