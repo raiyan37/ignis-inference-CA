@@ -85,3 +85,63 @@ def palisades_stub():
             [(-118.56, 34.05), (-118.50, 34.05), (-118.50, 34.10), (-118.56, 34.10)]
         ),
     )
+
+
+@pytest.fixture
+def tiny_resunet():
+    """ResU-Net(base=4) on CPU — ~5k params, fast enough for every eval test.
+
+    H=W=32 is the smallest size that survives four 2x downsamples (32 / 16 = 2).
+    """
+    import torch  # noqa: F401 — imported lazily so fixture collection is cheap
+
+    from ignisca.models.resunet import ResUNet
+
+    return ResUNet(in_channels=12, base=4, dropout=0.3)
+
+
+@pytest.fixture
+def tiny_checkpoint(tmp_path, tiny_resunet):
+    """Save the tiny ResU-Net to a .pt file matching Plan 2's checkpoint schema."""
+    import torch
+
+    ckpt_path = tmp_path / "best.pt"
+    torch.save(
+        {
+            "epoch": 0,
+            "model_state_dict": tiny_resunet.state_dict(),
+            "config": {"base_channels": 4, "dropout": 0.3},
+        },
+        ckpt_path,
+    )
+    return ckpt_path
+
+
+@pytest.fixture
+def synthetic_batch():
+    """(x, y) with plausible per-channel distributions matching CHANNEL_NAMES."""
+    import torch
+
+    torch.manual_seed(0)
+    x = torch.randn(4, 12, 32, 32) * 0.5
+    x[:, 0] = (torch.rand(4, 32, 32) > 0.85).float()   # fire_mask
+    x[:, 1] = torch.rand(4, 32, 32)                    # fuel_model
+    x[:, 4] = torch.relu(torch.randn(4, 32, 32))       # slope >= 0
+    x[:, 7] = torch.randn(4, 32, 32) * 5               # wind_u
+    x[:, 8] = torch.randn(4, 32, 32) * 5               # wind_v
+    y = (torch.rand(4, 32, 32) > 0.80).float()
+    return x, y
+
+
+@pytest.fixture
+def santa_ana_batch():
+    """Uniform SW-flowing wind (u=-7.07, v=-7.07) ≈ 10 m/s from NE (offshore).
+
+    A ground-truth positive case for the Santa Ana classifier.
+    """
+    import torch
+
+    x = torch.zeros(2, 12, 32, 32)
+    x[:, 7] = -7.07
+    x[:, 8] = -7.07
+    return x
