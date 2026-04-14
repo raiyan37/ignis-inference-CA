@@ -54,3 +54,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# IgnisCA eval artifacts (regenerable, large)
+runs/**/predictions_*.npz
+runs/**/sample_metrics_*.jsonl
+reports/failures/
