@@ -126,7 +126,9 @@ def evaluate_run(
     with torch.no_grad():
         for x, y in loader:
             x = x.float().to(device)
-            y = y.float().to(device).unsqueeze(1)  # (B, 1, H, W)
+            y = y.float().to(device)
+            if y.ndim == 3:
+                y = y.unsqueeze(1)  # (B, H, W) → (B, 1, H, W)
             input_mask = x[:, 0:1]
             logits = model(x)
             mean, var = mc_dropout_predict(model, x, n_samples=mc_samples)

@@ -26,7 +26,8 @@ def _infer_cell_seed_from_run_dir(run_dir: Path) -> tuple[str, int]:
     if seed_token is None:
         raise ValueError(f"cannot infer seed from run name {name!r}")
     seed = int(seed_token[len("seed"):])
-    cell = parts[0] if parts else name
+    seed_idx = parts.index(seed_token)
+    cell = "_".join(parts[:seed_idx])
     return cell, seed
 
 
