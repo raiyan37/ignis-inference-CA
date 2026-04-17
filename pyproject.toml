@@ -47,7 +47,7 @@ select = ["E", "F", "I", "N", "W", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-v --strict-markers"
+addopts = "-v --strict-markers --import-mode=importlib"
 markers = [
     "viz: tests that require the matplotlib viz extra (skipped if matplotlib is unavailable)",
 ]
